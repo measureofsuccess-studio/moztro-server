@@ -1,0 +1,22 @@
+# Node dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Production build artifacts
+dist/
+build-artifacts/
+
+# Local configuration & state
+app-settings.json
+paired-devices.json
+
+# Environment and logs
+*.log
+.env
+.env.local
+
+# Operating System Files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Moztro</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Top Bar -->
+    <header class="top-bar">
+      <div class="top-bar-left">
+        <img src="logo.png" alt="Moztro" class="app-logo" id="brandLogo">
+      </div>
+      <div class="top-bar-right">
+        <div class="status-indicator" id="statusIndicator">
+          <span class="status-text font-mono" id="serverInfoText">Connecting...</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- 1px Horizontal Divider -->
+    <div class="top-bar-divider"></div>
+
+    <!-- Main Container Split (Left 1/4 & Right 3/4) -->
+    <main class="main-container" id="mainContainer">
+      <!-- Left Container (1/4 width) -->
+      <section class="left-container" id="leftContainer">
+        <div class="sidebar-content">
+          <div class="sidebar-menu-item active" id="btnHome">
+            <img src="home.png" alt="Home" class="menu-icon">
+            <span class="menu-label">Home</span>
+          </div>
+          <div class="sidebar-menu-item" id="btnAbout">
+            <img src="about.png" alt="About" class="menu-icon">
+            <span class="menu-label">About</span>
+          </div>
+        </div>
+        <div class="sidebar-bottom">
+          <div class="sidebar-menu-item" id="btnSettings">
+            <img src="setting.png" alt="Settings" class="menu-icon">
+            <span class="menu-label">Settings</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 1px Vertical Divider -->
+      <div class="vertical-divider"></div>
+
+      <!-- Right Container (3/4 width) -->
+      <section class="right-container" id="rightContainer">
+        <!-- Home / Devices View -->
+        <div class="view-panel" id="homeView">
+          <div class="devices-container" id="devicesContainer">
+            <div class="empty-device-text" id="emptyDeviceText">no device detected</div>
+            <div class="devices-list hidden" id="devicesList">
+              <!-- Dynamic rows of detected devices -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Connected Device View -->
+        <div class="view-panel hidden" id="deviceView">
+          <div class="device-view-container">
+            <div class="device-view-top-row">
+              <!-- VOD (View On Device) Box -->
+              <div class="device-menu-box" id="tileVod">
+                <img src="vod.png" alt="VOD" class="device-menu-icon">
+                <span class="device-menu-label">VOD</span>
+              </div>
+
+              <!-- Send File Box (Samping Kiri Ping / RTT) -->
+              <div class="device-menu-box" id="tileSendFile">
+                <img src="share.png" alt="Send File" class="device-menu-icon">
+                <span class="device-menu-label">Send File</span>
+              </div>
+
+              <!-- 1:1 Ping Monitor Box at Top Right (180px x 180px) -->
+              <div class="ping-box">
+                <div class="ping-header">
+                  <span class="ping-label font-mono">PING / RTT</span>
+                  <span class="ping-value font-mono" id="pingValue">-- ms</span>
+                </div>
+                <div class="ping-chart-container">
+                  <canvas id="pingCanvas" class="ping-canvas" width="154" height="110"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Send File View -->
+        <div class="view-panel hidden" id="sendFileView">
+          <div class="send-file-header">
+            <button class="btn btn-secondary btn-sm" id="btnBackFromSendFile">
+              ← Back
+            </button>
+            <h2 class="settings-title">Send File</h2>
+          </div>
+          <div class="send-file-divider"></div>
+
+          <!-- Two-column body -->
+          <div class="send-file-body" id="sendFileBody">
+
+            <!-- LEFT COLUMN: Drag & Drop + Buttons -->
+            <div class="send-file-left">
+
+              <!-- Drag & Drop Zone (clean, only shows clipboard preview) -->
+              <div class="drag-drop-zone" id="dragDropZone">
+                <!-- Default empty state -->
+                <div class="drop-zone-default" id="dropZoneDefault">
+                  <img src="share.png" alt="Upload" class="drop-zone-icon">
+                  <p class="drop-zone-text">Drag & drop files here, or</p>
+                  <button class="btn btn-primary btn-sm" id="btnSelectFilePc">
+                    Select File
+                  </button>
+                </div>
+
+                <!-- Clipboard Image Preview (only state that shows here) -->
+                <div class="clipboard-image-preview hidden" id="clipboardImagePreview">
+                  <div class="preview-card">
+                    <div class="preview-img-wrap">
+                      <img id="clipboardImgElement" class="preview-img" alt="Clipboard Preview">
+                    </div>
+                    <div class="preview-details">
+                      <span class="preview-name font-mono" id="clipboardImgName">Screenshot.png</span>
+                      <span class="preview-meta font-mono" id="clipboardImgMeta">0 KB</span>
+                      <div class="preview-actions">
+                        <button class="btn btn-primary btn-sm" id="btnConfirmSendImage">
+                          Confirm Send
+                        </button>
+                        <button class="btn btn-secondary btn-sm" id="btnCancelImagePreview">
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Action Buttons -->
+              <div class="send-file-actions-col">
+                <button class="btn btn-secondary send-action-btn" id="btnSendFilePcMain">
+                  <span class="action-btn-title">Send File</span>
+                  <span class="action-btn-sub">PC → HP ↑</span>
+                </button>
+                <button class="btn btn-secondary send-action-btn" id="btnSendClipboardPc">
+                  <span class="action-btn-title">Send Clipboard</span>
+                  <span class="action-btn-sub">PC → HP ↑</span>
+                </button>
+                <button class="btn btn-secondary send-action-btn" id="btnPasteClipboardPc">
+                  <span class="action-btn-title">Paste Clipboard</span>
+                  <span class="action-btn-sub">HP → PC ↓</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- RIGHT COLUMN: Transfer Log Panel -->
+            <div class="send-file-right">
+              <div class="transfer-log-panel">
+                <!-- Panel Header -->
+                <div class="transfer-log-header" id="transferLogHeader">
+                  <!-- Normal Header (default) -->
+                  <div class="transfer-log-header-normal" id="logHeaderNormal">
+                    <span class="transfer-log-title">Transfer Log</span>
+                    <button class="btn-text-action" id="btnSelectModeToggle">Select</button>
+                  </div>
+                  <!-- Selection Header (active when items selected) -->
+                  <div class="transfer-log-header-select hidden" id="logHeaderSelect">
+                    <label class="select-all-label">
+                      <input type="checkbox" id="cbSelectAll" class="custom-checkbox">
+                      <span class="select-all-text font-mono">Select All</span>
+                    </label>
+                    <div class="log-select-actions">
+                      <button class="btn-clear-selected" id="btnClearSelected">Clear</button>
+                      <button class="btn-cancel-select" id="btnCancelSelect">Cancel</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="transfer-log-divider"></div>
+
+                <!-- Active Transfer Progress (top) -->
+                <div class="active-transfer-box hidden" id="activeTransferBox">
+                  <div class="active-transfer-row">
+                    <span class="active-transfer-arrow" id="activeTransferArrow">↑</span>
+                    <div class="active-transfer-info">
+                      <span class="active-transfer-name font-mono" id="activeTransferName">file.zip</span>
+                      <span class="active-transfer-speed font-mono" id="activeTransferSpeed">0 KB/s</span>
+                    </div>
+                    <span class="active-transfer-pct font-mono" id="activeTransferPct">0%</span>
+                  </div>
+                  <div class="active-transfer-bar-track">
+                    <div class="active-transfer-bar-fill" id="activeTransferBarFill"></div>
+                  </div>
+                </div>
+
+                <!-- Log History (scrollable) -->
+                <div class="transfer-log-scroll" id="transferLogScroll">
+                  <div class="transfer-log-empty" id="transferLogEmpty">No transfers yet</div>
+                  <!-- Dynamic log rows rendered here -->
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Settings View -->
+        <div class="view-panel hidden" id="settingsView">
+          <div class="settings-header">
+            <h2 class="settings-title">Settings</h2>
+          </div>
+          <div class="settings-list">
+            <div class="setting-item">
+              <span class="setting-label">Minimize to system tray</span>
+              <label class="switch">
+                <input type="checkbox" id="trayToggle">
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+            <div class="setting-item">
+              <span class="setting-label">Auto-start on boot</span>
+              <label class="switch">
+                <input type="checkbox" id="autoStartToggle">
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+            <div class="setting-item">
+              <div class="setting-item-text">
+                <span class="setting-label">Delete original files when clearing history</span>
+                <span class="setting-subtext">Deleting history permanently removes the original files from storage.</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="deleteFileOnClearToggle">
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+            <div class="setting-item-column">
+              <div class="setting-item-header">
+                <span class="setting-label">Selected Directory for File Send</span>
+                <button class="btn btn-secondary btn-sm" id="btnChangeDir">Change</button>
+              </div>
+              <div class="setting-dir-path font-mono" id="selectedDirPath">C:\Users\Documents</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- About View Panel -->
+        <div class="view-panel hidden" id="aboutView">
+          <div class="about-container">
+            <div class="about-header">
+              <h2 class="about-title">About</h2>
+            </div>
+            <div class="about-divider"></div>
+
+            <div class="about-content">
+              <!-- Hero App Card -->
+              <div class="about-hero-card">
+                <div class="about-hero-brand">
+                  <h1 class="about-app-name">MOZTRO</h1>
+                  <span class="about-badge font-mono">v1.0.0</span>
+                </div>
+                <p class="about-app-tagline font-mono">Universal PC-Android Seamless Bridge</p>
+              </div>
+
+              <!-- Section: About the App -->
+              <div class="about-section">
+                <h3 class="about-section-title">About the App</h3>
+                <p class="about-section-text">
+                  Moztro adalah ekosistem kontrol dan pertukaran data lokal nirkabel berkecepatan tinggi yang menghubungkan perangkat Android dan PC Windows Anda secara instan tanpa memerlukan koneksi internet/cloud.
+                </p>
+              </div>
+
+              <!-- Section: Fitur Utama -->
+              <div class="about-section">
+                <h3 class="about-section-title">Fitur Utama</h3>
+                <div class="about-features-grid">
+                  <div class="about-feature-item">
+                    <div class="about-feature-name">Overdrive</div>
+                    <div class="about-feature-desc">Real-time PC screen mirroring dengan kontrol touch & multi-gesture trackpad presisi tinggi.</div>
+                  </div>
+                  <div class="about-feature-item">
+                    <div class="about-feature-name">Fast File Transfer</div>
+                    <div class="about-feature-desc">Pengiriman file & folder tanpa batas ukuran via local high-speed WebSocket & HTTP server.</div>
+                  </div>
+                  <div class="about-feature-item">
+                    <div class="about-feature-name">View On Device (VOD)</div>
+                    <div class="about-feature-desc">Akses dan kelola seluruh penyimpanan Android langsung dari PC File Explorer via FTP.</div>
+                  </div>
+                  <div class="about-feature-item">
+                    <div class="about-feature-name">Remote Control & Power Suite</div>
+                    <div class="about-feature-desc">Kontrol media, keyboard, touchpad, clipboard sync, hingga shutdown/restart PC jarak jauh.</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Section: Developer & Creator -->
+              <div class="about-section">
+                <h3 class="about-section-title">Developer & Creator</h3>
+                <div class="about-dev-box">
+                  <div class="about-info-row">
+                    <span class="about-info-label">Created & Developed by:</span>
+                    <span class="about-info-value font-mono">Akbar Dwi Mulya</span>
+                  </div>
+                  <div class="about-info-row">
+                    <span class="about-info-label">Brand / Project:</span>
+                    <span class="about-info-value font-mono">Measure of Success</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Section: Connect & Contact -->
+              <div class="about-section">
+                <h3 class="about-section-title">Connect & Contact</h3>
+                <div class="about-contact-grid">
+                  <div class="about-contact-card" id="aboutInstagramLink" role="button" tabindex="0">
+                    <div class="about-contact-header">
+                      <span class="about-contact-type">Instagram</span>
+                      <span class="about-link-icon">↗</span>
+                    </div>
+                    <div class="about-contact-val font-mono">@measureofsuccess.official</div>
+                  </div>
+
+                  <div class="about-contact-card" id="aboutEmailLink" role="button" tabindex="0">
+                    <div class="about-contact-header">
+                      <span class="about-contact-type">Email</span>
+                      <span class="about-link-icon">✉</span>
+                    </div>
+                    <div class="about-contact-val font-mono">measureofsuccess.official@gmail.com</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Section: Copyright & Legal -->
+              <div class="about-footer-legal">
+                <p class="about-legal-text font-mono">
+                  © 2026 Akbar Dwi Mulya (Measure of Success). All rights reserved.
+                </p>
+                <p class="about-legal-subtext font-mono">
+                  Built for seamless local productivity and maximum device interoperability.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Pairing Request Modal Dialog -->
+    <div class="modal-overlay hidden" id="pairingModal">
+      <div class="modal-card">
+        <div class="modal-tag">Device Authorization</div>
+        <h3 class="modal-title">Pairing Request</h3>
+        <p class="modal-desc">
+          Device <strong id="reqDeviceName">Unknown Device</strong> <span id="reqDeviceIp" class="font-mono">(0.0.0.0)</span> is requesting permission to connect.
+        </p>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" id="btnRejectPair">Reject</button>
+          <button class="btn btn-primary" id="btnApprovePair">Allow</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Select Target Device Modal Dialog -->
+    <div class="modal-overlay hidden" id="modalSelectDevice">
+      <div class="modal-card modal-card-device-select">
+        <div class="modal-header-row">
+          <div class="modal-tag">Target Destination</div>
+          <button class="modal-btn-close" id="btnCancelDeviceSelect" title="Close">✕</button>
+        </div>
+        <h3 class="modal-title">Select Device to Send</h3>
+        
+        <div class="modal-file-info-box" id="modalFileInfoBox">
+          <div class="modal-file-icon">📄</div>
+          <div class="modal-file-details">
+            <div class="modal-file-name" id="modalFileName">file.png</div>
+            <div class="modal-file-meta font-mono" id="modalFileMeta">1 file • 2.4 MB</div>
+          </div>
+        </div>
+
+        <div class="modal-device-section">
+          <div class="modal-section-label">CONNECTED DEVICES</div>
+          <div class="modal-device-list" id="modalDeviceList">
+            <!-- Dynamic device cards -->
+          </div>
+          <div class="modal-device-empty hidden" id="modalDeviceEmpty">
+            <div class="radar-spinner"></div>
+            <span>Waiting for device to connect...</span>
+          </div>
+        </div>
+
+        <div class="modal-actions modal-actions-right">
+          <button class="btn btn-secondary" id="btnCloseDeviceSelect">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

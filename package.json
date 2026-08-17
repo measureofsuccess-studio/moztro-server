@@ -1,0 +1,64 @@
+{
+  "name": "moztro",
+  "productName": "Moztro",
+  "version": "1.0.0",
+  "description": "Universal PC-Android Seamless Bridge",
+  "author": "Measure of Success",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --enable-logging",
+    "headless": "node src/main/server.js",
+    "dist": "electron-builder --win"
+  },
+  "build": {
+    "appId": "com.moztro.app",
+    "productName": "Moztro",
+    "copyright": "Copyright © 2026 Measure of Success",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "bin/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "bin",
+        "to": "bin",
+        "filter": ["**/*"]
+      }
+    ],
+    "asarUnpack": [
+      "bin/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "src/renderer/icon.ico",
+      "legalTrademarks": "Measure of Success"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "perMachine": false,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "Moztro",
+      "include": "build/installer.nsh",
+      "installerIcon": "src/renderer/icon.ico",
+      "uninstallerIcon": "src/renderer/icon.ico",
+      "installerHeaderIcon": "src/renderer/icon.ico",
+      "uninstallDisplayName": "Moztro (Measure of Success)"
+    }
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  }
+}
