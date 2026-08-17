@@ -12,34 +12,34 @@
 [![Organization](https://img.shields.io/badge/org-Measure%20of%20Success-black.svg)](https://github.com/measureofsuccess-studio)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-[**Download Windows Installer (.exe)**](https://github.com/measureofsuccess-studio/moztro-server/releases/latest) • [**Android Client Repository 📱**](https://github.com/measureofsuccess-studio/moztro-client)
+[**Download Windows Installer (.exe)**](https://github.com/measureofsuccess-studio/moztro-server/releases/latest) • [**Android Client Repository**](https://github.com/measureofsuccess-studio/moztro-client)
 
 </div>
 
 ---
 
-## 🚀 Overview
+## Overview
 
-**Moztro Server** is the desktop companion application that empowers your Windows PC to connect seamlessly with your Android device over a local high-speed network without requiring internet access or cloud dependencies.
+**Moztro Server** is the desktop companion application that empowers your Windows PC to connect seamlessly with your Android device over a local high-speed network without requiring internet access or other third-party services.
 
-### 🌟 Key Capabilities
+### Key Capabilities
 
-- 🖥️ **Overdrive Screen Streaming**: Real-time PC screen mirroring to Android with ultra-low latency, multi-monitor selection, and direct touch/trackpad input synchronization.
-- ⚡ **Fast File Transfer**: Bidirectional, unlimited-size file and folder transfers powered by raw WebSocket and high-speed HTTP streams.
-- 📁 **View On Device (VOD)**: Access, manage, and browse your Android storage directly from Windows File Explorer via high-performance embedded FTP.
-- 🎮 **Remote Control & Power Suite**: Precision trackpad simulation, media controls, clipboard sync, remote keyboard input, and remote power actions (Shutdown, Restart, Lock).
-- 🖱️ **Windows Explorer Integration**: Native "Send with Moztro" context menu on right-click for instant file sending.
+- **Overdrive Screen Streaming**: Real-time PC screen mirroring to Android with ultra-low latency, multi-monitor selection, and direct touch/trackpad input synchronization.
+- **Fast File Transfer**: Bidirectional, unlimited-size file and folder transfers powered by raw WebSocket and high-speed HTTP streams.
+- **View On Device (VOD)**: Access, manage, and browse your Android storage directly from Windows File Explorer via high-performance embedded FTP.
+- **Remote Control & Power Suite**: Precision trackpad simulation, media controls, clipboard sync, remote keyboard input, and remote power actions (Shutdown, Restart, Lock).
+- **Windows Explorer Integration**: Native "Send with Moztro" context menu on right-click for instant file sending.
 
 ---
 
-## 📱 Ecosystem Companion
+## Ecosystem Companion
 
 Moztro Server connects directly with the **Moztro Android Client**:
-👉 [**Explore Moztro Client Repository (Android)**](https://github.com/measureofsuccess-studio/moztro-client)
+[**Explore Moztro Client Repository (Android)**](https://github.com/measureofsuccess-studio/moztro-client)
 
 ---
 
-## 📥 Installation
+## Installation
 
 1. Download the latest **`Moztro Setup 1.0.0.exe`** from the [**Releases Page**](https://github.com/measureofsuccess-studio/moztro-server/releases/latest).
 2. Run the setup wizard to install Moztro to your preferred directory.
@@ -47,7 +47,7 @@ Moztro Server connects directly with the **Moztro Android Client**:
 
 ---
 
-## 🛠️ Development & Building
+## Development & Building
 
 ### Prerequisites
 - [Node.js](https://nodejs.org/) (v18 or higher)
@@ -75,7 +75,7 @@ The resulting installer will be generated in `dist/Moztro Setup 1.0.0.exe`.
 
 ---
 
-## 👨‍💻 Developer & Creator
+## Developer & Creator
 
 - **Developer**: Akbar Dwi Mulya
 - **Organization**: [Measure of Success](https://github.com/measureofsuccess-studio)
@@ -84,7 +84,7 @@ The resulting installer will be generated in `dist/Moztro Setup 1.0.0.exe`.
 
 ---
 
-## 📄 License
+## License
 
 Copyright © 2026 Akbar Dwi Mulya (Measure of Success). All rights reserved.
 Licensed under the [MIT License](LICENSE).
