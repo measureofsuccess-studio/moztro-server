@@ -1,7 +1,7 @@
 {
   "name": "moztro",
   "productName": "Moztro",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Universal PC-Android Seamless Bridge",
   "author": "Measure of Success",
   "main": "src/main/main.js",

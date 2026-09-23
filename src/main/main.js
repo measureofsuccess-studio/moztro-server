@@ -3,6 +3,8 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const MoztroServer = require('./server');
+const https = require('https');
+const { spawn } = require('child_process');
 
 // Set Application Identity for Windows Taskbar & System
 app.setName('Moztro');
@@ -19,6 +21,11 @@ let autoStart = false;
 let fileSaveDirectory = path.join(os.homedir(), 'Documents');
 let deleteFileOnClearHistory = false;
 
+// Auto-updater state
+let latestDownloadedInstaller = null;
+let latestDownloadedVersion = null;
+let isUpdateDownloading = false;
+
 function getSettingsFilePath() {
   try {
     const userDir = app.getPath('userData');
@@ -28,6 +35,18 @@ function getSettingsFilePath() {
     return path.join(userDir, 'app-settings.json');
   } catch (_) {
     return path.join(__dirname, '../../app-settings.json');
+  }
+}
+
+function getPairedDevicesFilePath() {
+  try {
+    const userDir = app.getPath('userData');
+    if (!fs.existsSync(userDir)) {
+      fs.mkdirSync(userDir, { recursive: true });
+    }
+    return path.join(userDir, 'paired-devices.json');
+  } catch (_) {
+    return path.join(__dirname, '../../paired-devices.json');
   }
 }
 
@@ -99,10 +118,10 @@ function applyAutoStart(enabled) {
       }
     } catch (_) {}
 
-    // 3. Register or unregister Moztro.exe in HKCU Run registry
+    // 3. Register or unregister Moztro.exe in HKCU Run registry with --autostart
     try {
       if (autoStart) {
-        const cmd = `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "Moztro" /t REG_SZ /d "\\"${moztroExe}\\"" /f`;
+        const cmd = `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "Moztro" /t REG_SZ /d "\\"${moztroExe}\\" --autostart" /f`;
         exec(cmd, (err) => {
           if (err) console.warn('Could not add Moztro to registry:', err.message);
         });
@@ -115,7 +134,8 @@ function applyAutoStart(enabled) {
   } else {
     try {
       app.setLoginItemSettings({
-        openAtLogin: autoStart
+        openAtLogin: autoStart,
+        args: ['--autostart']
       });
     } catch (e) {
       console.warn('Could not update login item settings:', e.message);
@@ -153,8 +173,16 @@ function createTray() {
     ]);
 
     tray.setContextMenu(contextMenu);
+    tray.on('click', () => {
+      if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    });
     tray.on('double-click', () => {
       if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
         mainWindow.show();
         mainWindow.focus();
       }
@@ -170,6 +198,11 @@ function createWindow() {
   const iconPath = fs.existsSync(icoPath) ? icoPath : pngPath;
   const appIcon = nativeImage.createFromPath(iconPath);
 
+  // Check if launched by Windows Startup/Boot
+  const isStartedAtBoot = process.argv.some(arg => arg === '--autostart');
+  // Combo: If both auto-start on boot AND minimize to tray are enabled, start hidden directly into system tray!
+  const startHidden = isStartedAtBoot && autoStart && minimizeToTray;
+
   mainWindow = new BrowserWindow({
     width: 900,
     height: 680,
@@ -178,6 +211,7 @@ function createWindow() {
     title: 'Moztro',
     icon: appIcon,
     backgroundColor: '#0a0a0a',
+    show: !startHidden,
     webPreferences: {
       preload: path.join(__dirname, '../preload/preload.js'),
       nodeIntegration: false,
@@ -325,6 +359,11 @@ if (!gotTheLock) {
           }
         }, 500);
       }
+
+      // Trigger silent GitHub update check after 3 seconds
+      setTimeout(() => {
+        checkForGithubUpdates().catch(e => console.warn('[AutoUpdate] Check error:', e));
+      }, 3000);
     });
 
   const captureHandler = async () => {
@@ -345,7 +384,13 @@ if (!gotTheLock) {
   };
 
   // Initialize and start Server
-  server = new MoztroServer({ fileSaveDirectory, clipboard, captureHandler, evalHandler });
+  server = new MoztroServer({
+    storagePath: getPairedDevicesFilePath(),
+    fileSaveDirectory,
+    clipboard,
+    captureHandler,
+    evalHandler
+  });
 
   server.on('log', (msg) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -853,6 +898,226 @@ if (!gotTheLock) {
       console.warn('Failed to open external url:', e.message);
     }
     return false;
+  });
+
+  // ─── Auto-Update Functions & Handlers ──────────────────────────────────────
+  function isNewerVersion(remoteTag, localVer) {
+    try {
+      const parse = (v) => {
+        const cleaned = (v || '').toLowerCase().replace(/^v/, '').split('-')[0].split(' ')[0].trim();
+        return cleaned.split('.').map(p => parseInt(p, 10) || 0);
+      };
+      const [rMaj = 0, rMin = 0, rPat = 0] = parse(remoteTag);
+      const [lMaj = 0, lMin = 0, lPat = 0] = parse(localVer);
+      if (rMaj > lMaj) return true;
+      if (rMaj === lMaj && rMin > lMin) return true;
+      if (rMaj === lMaj && rMin === lMin && rPat > lPat) return true;
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function downloadFileWithRedirect(url, destPath, onProgress) {
+    return new Promise((resolve, reject) => {
+      function fetchUrl(targetUrl, redirectCount = 0) {
+        if (redirectCount > 10) {
+          return reject(new Error('Too many redirects'));
+        }
+        const client = targetUrl.startsWith('http:') ? require('http') : https;
+        const req = client.get(targetUrl, {
+          headers: {
+            'User-Agent': 'Moztro-PC-Server',
+            'Accept': 'application/octet-stream'
+          },
+          timeout: 30000
+        }, (res) => {
+          if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+            return fetchUrl(res.headers.location, redirectCount + 1);
+          }
+          if (res.statusCode !== 200) {
+            return reject(new Error(`HTTP status ${res.statusCode}`));
+          }
+          const total = parseInt(res.headers['content-length'] || '0', 10);
+          let downloaded = 0;
+          const fileStream = fs.createWriteStream(destPath);
+          res.on('data', (chunk) => {
+            downloaded += chunk.length;
+            if (total > 0 && onProgress) {
+              const pct = Math.min(100, Math.round((downloaded / total) * 100));
+              onProgress(pct, downloaded, total);
+            }
+          });
+          res.pipe(fileStream);
+          fileStream.on('finish', () => {
+            fileStream.close(() => resolve(destPath));
+          });
+          fileStream.on('error', (err) => {
+            fs.unlink(destPath, () => {});
+            reject(err);
+          });
+        });
+        req.on('error', (err) => {
+          fs.unlink(destPath, () => {});
+          reject(err);
+        });
+        req.on('timeout', () => {
+          req.destroy();
+          fs.unlink(destPath, () => {});
+          reject(new Error('Download timeout'));
+        });
+      }
+      fetchUrl(url);
+    });
+  }
+
+  async function checkForGithubUpdates() {
+    if (isUpdateDownloading) return { hasUpdate: false, downloading: true };
+    const currentAppVersion = app.getVersion(); // "1.0.1"
+
+    return new Promise((resolve) => {
+      const req = https.get('https://api.github.com/repos/measureofsuccess-studio/moztro-server/releases/latest', {
+        headers: {
+          'User-Agent': 'Moztro-PC-Server',
+          'Accept': 'application/vnd.github+json'
+        },
+        timeout: 10000
+      }, (res) => {
+        if (res.statusCode !== 200) {
+          console.warn('[AutoUpdate] GitHub API returned status:', res.statusCode);
+          return resolve({ hasUpdate: false, statusCode: res.statusCode });
+        }
+        let body = '';
+        res.on('data', (chunk) => { body += chunk; });
+        res.on('end', async () => {
+          try {
+            const release = JSON.parse(body);
+            const tagName = (release.tag_name || '').trim();
+            const releaseName = (release.name || '').trim();
+            const isBeta = !!release.prerelease || /beta/i.test(tagName) || /beta/i.test(releaseName);
+
+            const hasNewer = isNewerVersion(tagName, currentAppVersion);
+            if (!hasNewer) {
+              console.log(`[AutoUpdate] Up-to-date (Current: v${currentAppVersion}, Latest: ${tagName})`);
+              return resolve({ hasUpdate: false, currentVersion: currentAppVersion, latestTag: tagName });
+            }
+
+            // Format version label: (vX.X.X) or (vX.X.X) Beta
+            const rawVer = tagName.replace(/^v/i, '').split('-')[0].split(' ')[0].trim();
+            const formattedVer = `v${rawVer}` + (isBeta ? ' Beta' : '');
+
+            // Find .exe asset
+            const assets = Array.isArray(release.assets) ? release.assets : [];
+            const exeAsset = assets.find(a => (a.name || '').toLowerCase().endsWith('.exe') && !a.name.includes('blockmap'));
+            if (!exeAsset || !exeAsset.browser_download_url) {
+              console.warn('[AutoUpdate] No .exe installer asset found in release:', tagName);
+              return resolve({ hasUpdate: false });
+            }
+
+            console.log(`[AutoUpdate] Found newer release: ${formattedVer} (${exeAsset.name}, ${exeAsset.size} bytes)`);
+
+            const updateDir = path.join(app.getPath('temp'), 'moztro-update');
+            if (!fs.existsSync(updateDir)) {
+              fs.mkdirSync(updateDir, { recursive: true });
+            }
+            const destPath = path.join(updateDir, exeAsset.name);
+
+            // If already downloaded and complete
+            if (fs.existsSync(destPath) && fs.statSync(destPath).size === exeAsset.size) {
+              latestDownloadedInstaller = destPath;
+              latestDownloadedVersion = formattedVer;
+              if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('update-download-complete', {
+                  versionLabel: formattedVer,
+                  installerPath: destPath
+                });
+              }
+              return resolve({ hasUpdate: true, ready: true, version: formattedVer });
+            }
+
+            // Start Silent Background Download
+            isUpdateDownloading = true;
+            let lastReportedPct = -1;
+
+            await downloadFileWithRedirect(exeAsset.browser_download_url, destPath, (pct, downloaded, total) => {
+              if (pct !== lastReportedPct) {
+                lastReportedPct = pct;
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                  mainWindow.webContents.send('update-download-progress', {
+                    percent: pct,
+                    downloaded,
+                    total,
+                    versionLabel: formattedVer
+                  });
+                }
+              }
+            });
+
+            isUpdateDownloading = false;
+            latestDownloadedInstaller = destPath;
+            latestDownloadedVersion = formattedVer;
+
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('update-download-complete', {
+                versionLabel: formattedVer,
+                installerPath: destPath
+              });
+            }
+            return resolve({ hasUpdate: true, ready: true, version: formattedVer });
+          } catch (e) {
+            isUpdateDownloading = false;
+            console.warn('[AutoUpdate] Failed parsing release response:', e.message);
+            return resolve({ hasUpdate: false, error: e.message });
+          }
+        });
+      });
+
+      req.on('error', (err) => {
+        console.warn('[AutoUpdate] Error contacting GitHub API:', err.message);
+        resolve({ hasUpdate: false, error: err.message });
+      });
+      req.on('timeout', () => {
+        req.destroy();
+        console.warn('[AutoUpdate] Request to GitHub API timed out');
+        resolve({ hasUpdate: false, error: 'timeout' });
+      });
+    });
+  }
+
+  ipcMain.handle('check-for-updates', async () => {
+    return await checkForGithubUpdates();
+  });
+
+  ipcMain.handle('install-update', () => {
+    if (!latestDownloadedInstaller || !fs.existsSync(latestDownloadedInstaller)) {
+      return { success: false, error: 'Installer file not found' };
+    }
+    try {
+      console.log('[AutoUpdate] Preparing silent install & restart:', latestDownloadedInstaller);
+      const targetExe = process.execPath.toLowerCase().endsWith('electron.exe')
+        ? path.join(process.env.LOCALAPPDATA || os.homedir(), 'Programs', 'Moztro', 'Moztro.exe')
+        : process.execPath;
+
+      // Launch hidden powershell script: wait for silent install (/S) to complete, then start updated Moztro.exe
+      const psCommand = `Start-Sleep -Milliseconds 800; Start-Process -FilePath "${latestDownloadedInstaller}" -ArgumentList "/S" -Wait; Start-Process -FilePath "${targetExe}"`;
+      const child = spawn('powershell.exe', ['-NoProfile', '-WindowStyle', 'Hidden', '-Command', psCommand], {
+        detached: true,
+        stdio: 'ignore'
+      });
+      child.unref();
+
+      // Gracefully exit immediately so installer can overwrite files without locks
+      setTimeout(() => {
+        if (server) server.stop();
+        isQuitting = true;
+        app.quit();
+      }, 400);
+
+      return { success: true };
+    } catch (err) {
+      console.error('[AutoUpdate] Failed to launch installer process:', err);
+      return { success: false, error: err.message };
+    }
   });
 
   app.on('activate', () => {

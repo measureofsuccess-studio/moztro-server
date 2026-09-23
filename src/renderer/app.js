@@ -49,10 +49,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   const logHeaderNormal = document.getElementById('logHeaderNormal');
   const logHeaderSelect = document.getElementById('logHeaderSelect');
   const btnSelectModeToggle = document.getElementById('btnSelectModeToggle');
+  const btnDeleteAllData = document.getElementById('btnDeleteAllData');
   const cbSelectAll = document.getElementById('cbSelectAll');
-  const btnClearSelected = document.getElementById('btnClearSelected');
+  const selectAllText = document.getElementById('selectAllText');
+  const btnOpenSelected = document.getElementById('btnOpenSelected');
+  const btnCopySelected = document.getElementById('btnCopySelected');
+  const btnDeleteSelected = document.getElementById('btnDeleteSelected');
   const btnCancelSelect = document.getElementById('btnCancelSelect');
   const deleteFileOnClearToggle = document.getElementById('deleteFileOnClearToggle');
+
+  // Confirm delete all data modal elements
+  const modalConfirmDeleteAll = document.getElementById('modalConfirmDeleteAll');
+  const btnCancelDeleteAll = document.getElementById('btnCancelDeleteAll');
+  const btnConfirmDeleteAll = document.getElementById('btnConfirmDeleteAll');
+
+  // Auto-Update elements
+  const updateBarContainer = document.getElementById('updateBarContainer');
+  const updateProgressText = document.getElementById('updateProgressText');
+  const btnInstallUpdate = document.getElementById('btnInstallUpdate');
 
   let currentPendingDeviceId = null;
   let currentSelectedDevice = null;
@@ -390,9 +404,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         cbSelectAll.checked = total > 0 && count === total;
         cbSelectAll.indeterminate = count > 0 && count < total;
       }
-      if (btnClearSelected) {
-        btnClearSelected.textContent = count > 0 ? `Clear (${count})` : 'Clear';
-        btnClearSelected.disabled = count === 0;
+      if (selectAllText) {
+        selectAllText.textContent = count > 0 ? `(${count})` : 'All';
+      }
+      if (btnOpenSelected) {
+        btnOpenSelected.disabled = count === 0;
+      }
+      if (btnCopySelected) {
+        btnCopySelected.disabled = count === 0;
+      }
+      if (btnDeleteSelected) {
+        btnDeleteSelected.disabled = count === 0;
+        btnDeleteSelected.textContent = count > 0 ? `Delete (${count})` : 'Delete';
       }
     } else {
       if (logHeaderSelect) logHeaderSelect.classList.add('hidden');
@@ -441,6 +464,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderTransferLog() {
     if (!transferLogScroll) return;
 
+    if (btnDeleteAllData) {
+      btnDeleteAllData.disabled = transferLog.length === 0;
+      btnDeleteAllData.style.opacity = transferLog.length === 0 ? '0.35' : '1';
+      btnDeleteAllData.style.cursor = transferLog.length === 0 ? 'not-allowed' : 'pointer';
+    }
+    if (btnSelectModeToggle) {
+      btnSelectModeToggle.disabled = transferLog.length === 0;
+      btnSelectModeToggle.style.opacity = transferLog.length === 0 ? '0.35' : '1';
+      btnSelectModeToggle.style.cursor = transferLog.length === 0 ? 'not-allowed' : 'pointer';
+    }
+
     // Remove all log rows (keep the empty placeholder)
     Array.from(transferLogScroll.querySelectorAll('.log-row')).forEach(el => el.remove());
 
@@ -486,8 +520,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         <span class="log-row-status ${statusClass}">${statusLabel}</span>
       `;
 
-      row.addEventListener('click', async () => {
+      if (isSelectMode) {
+        const cb = row.querySelector('.log-row-checkbox');
+        if (cb) {
+          cb.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleItemSelection(entry.id);
+          });
+        }
+      }
+
+      row.addEventListener('click', async (e) => {
         if (isSelectMode) {
+          if (e.target && e.target.classList.contains('log-row-checkbox')) return;
           toggleItemSelection(entry.id);
         } else {
           // Normal mode: open file with default OS application or copy clipboard text
@@ -711,7 +756,61 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Enter selection mode
   if (btnSelectModeToggle) {
     btnSelectModeToggle.addEventListener('click', () => {
+      if (transferLog.length === 0) return;
       toggleSelectMode(!isSelectMode);
+    });
+  }
+
+  // Open Delete All Data modal
+  if (btnDeleteAllData) {
+    btnDeleteAllData.addEventListener('click', () => {
+      if (transferLog.length === 0) return;
+      if (modalConfirmDeleteAll) modalConfirmDeleteAll.classList.remove('hidden');
+    });
+  }
+
+  // Cancel Delete All Data
+  if (btnCancelDeleteAll) {
+    btnCancelDeleteAll.addEventListener('click', () => {
+      if (modalConfirmDeleteAll) modalConfirmDeleteAll.classList.add('hidden');
+    });
+  }
+
+  // Confirm Delete All Data: permanently wipe logs and delete physical files from disk
+  if (btnConfirmDeleteAll) {
+    btnConfirmDeleteAll.addEventListener('click', async () => {
+      if (modalConfirmDeleteAll) modalConfirmDeleteAll.classList.add('hidden');
+      
+      const itemsToDelete = transferLog.map(e => ({
+        name: e.name,
+        path: e.path || ''
+      }));
+
+      // Unconditionally delete physical files for Delete All Data
+      if (window.moztroAPI?.deleteTransferFiles && itemsToDelete.length > 0) {
+        try {
+          await window.moztroAPI.deleteTransferFiles(itemsToDelete);
+        } catch (err) {
+          console.warn('Could not delete files on clear all:', err);
+        }
+      }
+
+      transferLog = [];
+      selectedLogIds.clear();
+      isSelectMode = false;
+      saveTransferLogsToStorage();
+      hideActiveProgress();
+      updateSelectionHeader();
+      renderTransferLog();
+    });
+  }
+
+  // Close Delete All Modal on backdrop click
+  if (modalConfirmDeleteAll) {
+    modalConfirmDeleteAll.addEventListener('click', (e) => {
+      if (e.target === modalConfirmDeleteAll) {
+        modalConfirmDeleteAll.classList.add('hidden');
+      }
     });
   }
 
@@ -728,43 +827,123 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // Clear selected (or all if none selected)
-  async function clearSelectedLogs() {
-    const idsToRemove = selectedLogIds.size > 0
-      ? new Set(selectedLogIds)
-      : new Set(transferLog.map(e => e.id));
+  // Open selected files with default OS application
+  if (btnOpenSelected) {
+    btnOpenSelected.addEventListener('click', async () => {
+      const selectedEntries = transferLog.filter(e => selectedLogIds.has(e.id));
+      for (const entry of selectedEntries) {
+        if (entry.path && window.moztroAPI?.openFilePath) {
+          await window.moztroAPI.openFilePath(entry.path);
+        }
+      }
+    });
+  }
 
-    if (idsToRemove.size === 0) return;
+  // Copy selected file paths or clipboard text to clipboard
+  if (btnCopySelected) {
+    btnCopySelected.addEventListener('click', async () => {
+      const selectedEntries = transferLog.filter(e => selectedLogIds.has(e.id));
+      const itemsToCopy = [];
+      for (const entry of selectedEntries) {
+        if (entry.fullText) {
+          itemsToCopy.push(entry.fullText);
+        } else if (entry.path) {
+          itemsToCopy.push(entry.path);
+        } else if (entry.name) {
+          itemsToCopy.push(entry.name);
+        }
+      }
+      if (itemsToCopy.length > 0 && window.moztroAPI?.setClipboardText) {
+        await window.moztroAPI.setClipboardText(itemsToCopy.join('\r\n'));
+        const originalText = btnCopySelected.textContent;
+        btnCopySelected.textContent = 'Copied!';
+        setTimeout(() => {
+          btnCopySelected.textContent = originalText;
+        }, 1200);
+      }
+    });
+  }
 
-    if (deleteFileOnClearHistory && window.moztroAPI?.deleteTransferFiles) {
+  // Delete selected items from history (and physical files if configured)
+  if (btnDeleteSelected) {
+    btnDeleteSelected.addEventListener('click', async () => {
+      const idsToRemove = new Set(selectedLogIds);
+      if (idsToRemove.size === 0) return;
+
       const itemsToDelete = transferLog.filter(e => idsToRemove.has(e.id)).map(e => ({
         name: e.name,
         path: e.path || ''
       }));
-      try {
-        await window.moztroAPI.deleteTransferFiles(itemsToDelete);
-      } catch (err) {
-        console.warn('Could not delete files:', err);
+
+      // Delete physical files if deleteFileOnClearHistory setting is enabled
+      if (deleteFileOnClearHistory && window.moztroAPI?.deleteTransferFiles) {
+        try {
+          await window.moztroAPI.deleteTransferFiles(itemsToDelete);
+        } catch (err) {
+          console.warn('Could not delete files:', err);
+        }
       }
-    }
 
-    transferLog = transferLog.filter(e => !idsToRemove.has(e.id));
-    selectedLogIds.clear();
-    isSelectMode = false;
-    saveTransferLogsToStorage();
-    hideActiveProgress();
-    updateSelectionHeader();
-    renderTransferLog();
-  }
-
-  if (btnClearSelected) {
-    btnClearSelected.addEventListener('click', clearSelectedLogs);
+      transferLog = transferLog.filter(e => !idsToRemove.has(e.id));
+      selectedLogIds.clear();
+      isSelectMode = false;
+      saveTransferLogsToStorage();
+      hideActiveProgress();
+      updateSelectionHeader();
+      renderTransferLog();
+    });
   }
 
   // Cancel selection mode
   if (btnCancelSelect) {
     btnCancelSelect.addEventListener('click', () => {
       toggleSelectMode(false);
+    });
+  }
+
+  // ─── Auto-Update Listeners & Handlers ───────────────────────────────────────
+  if (window.moztroAPI?.onUpdateDownloadProgress) {
+    window.moztroAPI.onUpdateDownloadProgress((data) => {
+      if (updateProgressText) {
+        updateProgressText.textContent = `Downloading update... ${data.percent}%`;
+        updateProgressText.classList.remove('hidden');
+      }
+      if (btnInstallUpdate) {
+        btnInstallUpdate.classList.add('hidden');
+      }
+    });
+  }
+
+  if (window.moztroAPI?.onUpdateDownloadComplete) {
+    window.moztroAPI.onUpdateDownloadComplete((data) => {
+      if (updateProgressText) {
+        updateProgressText.classList.add('hidden');
+      }
+      if (btnInstallUpdate) {
+        btnInstallUpdate.textContent = `Install Update (${data.versionLabel})`;
+        btnInstallUpdate.classList.remove('hidden');
+      }
+    });
+  }
+
+  if (btnInstallUpdate) {
+    btnInstallUpdate.addEventListener('click', async () => {
+      btnInstallUpdate.disabled = true;
+      btnInstallUpdate.textContent = 'Restarting...';
+      try {
+        if (window.moztroAPI?.installUpdate) {
+          const res = await window.moztroAPI.installUpdate();
+          if (res && !res.success) {
+            console.warn('Install update failed:', res.error);
+            btnInstallUpdate.disabled = false;
+            btnInstallUpdate.textContent = 'Install Update';
+          }
+        }
+      } catch (err) {
+        console.error('Error invoking installUpdate:', err);
+        btnInstallUpdate.disabled = false;
+        btnInstallUpdate.textContent = 'Install Update';
+      }
     });
   }
 
@@ -1279,22 +1458,47 @@ document.addEventListener('DOMContentLoaded', async () => {
           }
 
           if (audioEnabled) {
+            let audioTrack = null;
+            // 1. Try loopback system audio capture via getDisplayMedia (triggers Electron loopback handler)
             try {
-              const audioStream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                  mandatory: {
-                    chromeMediaSource: 'desktop',
-                    chromeMediaSourceId: targetSourceId
-                  }
-                },
-                video: false
+              const displayAudioStream = await navigator.mediaDevices.getDisplayMedia({
+                video: true,
+                audio: true
               });
-              const audioTrack = audioStream.getAudioTracks()[0];
-              if (audioTrack && this.activeStream) {
-                this.activeStream.addTrack(audioTrack);
+              const aTracks = displayAudioStream.getAudioTracks();
+              if (aTracks && aTracks.length > 0) {
+                audioTrack = aTracks[0];
+                // Stop dummy video track
+                displayAudioStream.getVideoTracks().forEach(t => {
+                  try { t.stop(); } catch (_) {}
+                });
               }
-            } catch (audioErr) {
-              console.warn('Overdrive audio stream not available:', audioErr);
+            } catch (errLoopback) {
+              console.warn('Loopback audio via getDisplayMedia failed:', errLoopback);
+            }
+
+            // 2. Fallback: capture active audio device / stereo mix / default audio via getUserMedia
+            if (!audioTrack) {
+              try {
+                const micStream = await navigator.mediaDevices.getUserMedia({
+                  audio: {
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false
+                  },
+                  video: false
+                });
+                const aTracks = micStream.getAudioTracks();
+                if (aTracks && aTracks.length > 0) {
+                  audioTrack = aTracks[0];
+                }
+              } catch (errMic) {
+                console.warn('Fallback audio capture failed:', errMic);
+              }
+            }
+
+            if (audioTrack && this.activeStream) {
+              this.activeStream.addTrack(audioTrack);
             }
           }
 
@@ -1328,11 +1532,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       startAudioStreaming() {
         if (!this.audioEnabled || !this.activeStream) return;
         const audioTrack = this.activeStream.getAudioTracks()[0];
-        if (!audioTrack) return;
+        if (!audioTrack) {
+          console.warn('[Overdrive] No audio track available for streaming');
+          return;
+        }
 
         try {
           const AudioContextClass = window.AudioContext || window.webkitAudioContext;
           this.audioContext = new AudioContextClass({ sampleRate: 16000 });
+
+          if (this.audioContext.state === 'suspended') {
+            this.audioContext.resume().catch(e => console.warn('AudioContext resume failed:', e));
+          }
+
           this.audioSource = this.audioContext.createMediaStreamSource(new MediaStream([audioTrack]));
           this.audioProcessor = this.audioContext.createScriptProcessor(2048, 1, 1);
 
@@ -1427,7 +1639,129 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
 
+    // Dedicated Independent Audio Engine — streams PC audio continuously regardless of video engine
+    class OverdriveAudioEngine {
+      constructor() {
+        this.activeDeviceId = null;
+        this.audioContext = null;
+        this.audioSource = null;
+        this.audioProcessor = null;
+        this.audioStream = null;
+        this.isRunning = false;
+      }
+
+      async start(deviceId) {
+        this.stop();
+        this.activeDeviceId = deviceId;
+        this.isRunning = true;
+
+        try {
+          let audioTrack = null;
+
+          // 1. Try loopback system audio capture via getDisplayMedia (triggers Electron session loopback handler)
+          try {
+            const displayAudioStream = await navigator.mediaDevices.getDisplayMedia({
+              video: true,
+              audio: true
+            });
+            const aTracks = displayAudioStream.getAudioTracks();
+            if (aTracks && aTracks.length > 0) {
+              audioTrack = aTracks[0];
+              // Stop dummy video track so it uses zero GPU/CPU
+              displayAudioStream.getVideoTracks().forEach(t => {
+                try { t.stop(); } catch (_) {}
+              });
+              this.audioStream = displayAudioStream;
+            }
+          } catch (errLoopback) {
+            console.warn('[OverdriveAudio] Loopback audio getDisplayMedia failed, falling back:', errLoopback);
+          }
+
+          // 2. Fallback: capture active audio device / stereo mix / default audio via getUserMedia
+          if (!audioTrack) {
+            try {
+              const micStream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                  echoCancellation: false,
+                  noiseSuppression: false,
+                  autoGainControl: false
+                },
+                video: false
+              });
+              const aTracks = micStream.getAudioTracks();
+              if (aTracks && aTracks.length > 0) {
+                audioTrack = aTracks[0];
+                this.audioStream = micStream;
+              }
+            } catch (errMic) {
+              console.warn('[OverdriveAudio] Fallback mic getUserMedia failed:', errMic);
+            }
+          }
+
+          if (!audioTrack) {
+            console.warn('[OverdriveAudio] No audio track available for streaming');
+            return;
+          }
+
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          this.audioContext = new AudioContextClass({ sampleRate: 16000 });
+
+          if (this.audioContext.state === 'suspended') {
+            await this.audioContext.resume().catch(e => console.warn('AudioContext resume failed:', e));
+          }
+
+          this.audioSource = this.audioContext.createMediaStreamSource(new MediaStream([audioTrack]));
+          this.audioProcessor = this.audioContext.createScriptProcessor(2048, 1, 1);
+
+          this.audioProcessor.onaudioprocess = (e) => {
+            if (!this.isRunning || !this.activeDeviceId) return;
+            const inputData = e.inputBuffer.getChannelData(0);
+            const pcm16 = new Int16Array(inputData.length);
+            for (let i = 0; i < inputData.length; i++) {
+              const s = Math.max(-1, Math.min(1, inputData[i]));
+              pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            }
+
+            const buffer = new Uint8Array(1 + pcm16.buffer.byteLength);
+            buffer[0] = 0x02; // Header byte for PCM Audio
+            buffer.set(new Uint8Array(pcm16.buffer), 1);
+            window.moztroAPI?.sendOverdriveFrame(this.activeDeviceId, buffer);
+          };
+
+          this.audioSource.connect(this.audioProcessor);
+          this.audioProcessor.connect(this.audioContext.destination);
+          console.log('[OverdriveAudio] Audio streaming active for device:', deviceId);
+        } catch (e) {
+          console.warn('[OverdriveAudio] Audio engine start error:', e);
+        }
+      }
+
+      stop() {
+        this.isRunning = false;
+        this.activeDeviceId = null;
+        if (this.audioProcessor) {
+          try { this.audioProcessor.disconnect(); } catch (_) {}
+          this.audioProcessor = null;
+        }
+        if (this.audioSource) {
+          try { this.audioSource.disconnect(); } catch (_) {}
+          this.audioSource = null;
+        }
+        if (this.audioContext) {
+          try { this.audioContext.close(); } catch (_) {}
+          this.audioContext = null;
+        }
+        if (this.audioStream) {
+          try {
+            this.audioStream.getTracks().forEach(t => t.stop());
+          } catch (_) {}
+          this.audioStream = null;
+        }
+      }
+    }
+
     const overdriveStreamer = new OverdriveStreamer();
+    const overdriveAudioEngine = new OverdriveAudioEngine();
 
     if (window.moztroAPI?.onRequestScreenSources) {
       window.moztroAPI.onRequestScreenSources(async ({ deviceId }) => {
@@ -1440,8 +1774,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // --- Dual-Engine Overdrive Sync ---
-    // Main Process (desktopCapturer) = primary engine
-    // Renderer (getUserMedia WebRTC) = fallback if Main Process has no frames for 3s
+    // Main Process (desktopCapturer) = primary video engine
+    // Renderer (getUserMedia WebRTC) = video fallback if Main Process has no frames for 3s
     let rendererFallbackTimer = null;
     let rendererIsActive = false;
     let pendingStreamParams = null; // Store params for fallback use
@@ -1457,7 +1791,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       clearFallbackTimer();
       rendererFallbackTimer = setTimeout(async () => {
         if (!rendererIsActive) {
-          console.log('[Overdrive] Main Process has no frames, activating renderer fallback...');
+          console.log('[Overdrive] Main Process has no frames, activating renderer video fallback...');
           rendererIsActive = true;
           await overdriveStreamer.start(deviceId, sourceId, quality, audioEnabled);
         }
@@ -1466,16 +1800,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (window.moztroAPI?.onStartOverdriveStream) {
       window.moztroAPI.onStartOverdriveStream(async ({ deviceId, sourceId, quality, audioEnabled }) => {
-        // Store params for fallback
+        // Start independent audio streaming immediately if audio is enabled
+        if (audioEnabled !== false) {
+          overdriveAudioEngine.start(deviceId);
+        } else {
+          overdriveAudioEngine.stop();
+        }
+
+        // Store params for video fallback
         pendingStreamParams = { deviceId, sourceId, quality, audioEnabled };
         rendererIsActive = false;
-        // Schedule fallback — Main Process should send frames within 3s
+        // Schedule fallback — Main Process should send video frames within 3s
         scheduleFallback(deviceId, sourceId, quality, audioEnabled);
       });
     }
 
     if (window.moztroAPI?.onStopOverdriveStream) {
       window.moztroAPI.onStopOverdriveStream(({ deviceId }) => {
+        overdriveAudioEngine.stop();
         clearFallbackTimer();
         rendererIsActive = false;
         pendingStreamParams = null;

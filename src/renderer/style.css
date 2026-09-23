@@ -81,6 +81,72 @@ body {
   text-transform: uppercase;
 }
 
+/* ─── Auto-Update Elements in Top Bar ──────────────────── */
+.update-bar-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: 14px;
+  -webkit-app-region: no-drag;
+}
+
+.update-progress-text {
+  font-size: 11px;
+  color: #00b0ff;
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  animation: pulse-update 1.5s infinite ease-in-out;
+  -webkit-app-region: no-drag;
+}
+.update-progress-text.hidden {
+  display: none !important;
+}
+
+@keyframes pulse-update {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+.btn-update-pill {
+  background: #0099eb;
+  color: #ffffff;
+  border: none;
+  border-radius: 9999px;
+  padding: 5px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  letter-spacing: 0.02em;
+  box-shadow: 0 0 12px rgba(0, 153, 235, 0.45);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  outline: none;
+  -webkit-app-region: no-drag;
+}
+
+.btn-update-pill:hover {
+  background: #00aaff;
+  box-shadow: 0 0 18px rgba(0, 170, 255, 0.7);
+  transform: translateY(-1px);
+}
+
+.btn-update-pill:active {
+  transform: translateY(0);
+  background: #0088d1;
+  box-shadow: 0 0 8px rgba(0, 153, 235, 0.5);
+}
+
+.btn-update-pill.hidden {
+  display: none !important;
+}
+
 /* 1px Horizontal Divider */
 .top-bar-divider {
   height: 1px;
@@ -171,6 +237,7 @@ body {
 /* Right Container: fills remaining width */
 .right-container {
   flex: 1;
+  min-width: 0;
   height: 100%;
   background-color: var(--mono-dark-bg);
   overflow: hidden;
@@ -183,16 +250,20 @@ body {
   width: 100%;
   flex: 1;
   min-height: 0;
+  min-width: 0;
   padding: 24px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
 }
 
 /* Send File view manages its own layout — remove outer padding/scroll */
 #sendFileView {
   padding: 0;
   overflow: hidden;
+  min-width: 0;
+  width: 100%;
 }
 
 .view-panel.hidden {
@@ -618,29 +689,37 @@ body {
 .send-file-body {
   flex: 1;
   min-height: 0;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
   display: flex;
   flex-direction: row;
   gap: 0;
   overflow: hidden;
 }
 
-/* LEFT COLUMN — 55% */
+/* LEFT COLUMN — 50% */
 .send-file-left {
-  flex: 0 0 55%;
+  flex: 1 1 50%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 16px 14px 16px 20px;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
-/* RIGHT COLUMN — 45% */
+/* RIGHT COLUMN — 50% */
 .send-file-right {
-  flex: 0 0 45%;
+  flex: 1 1 50%;
+  min-width: 0;
   border-left: 1px solid var(--mono-border);
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 /* ─── Drag & Drop Zone ─────────────────────────────────── */
@@ -802,6 +881,10 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .transfer-log-header {
@@ -810,6 +893,9 @@ body {
   min-height: 40px;
   display: flex;
   align-items: center;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .transfer-log-header-normal {
@@ -817,24 +903,35 @@ body {
   justify-content: space-between;
   align-items: center;
   width: 100%;
+  min-width: 0;
+  gap: 8px;
 }
 .transfer-log-header-normal.hidden { display: none; }
+
+.log-normal-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
 
 .transfer-log-header-select {
   display: flex;
   justify-content: space-between;
   align-items: center;
   width: 100%;
-  gap: 8px;
+  min-width: 0;
+  gap: 6px;
 }
 .transfer-log-header-select.hidden { display: none; }
 
 .select-all-label {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   cursor: pointer;
   user-select: none;
+  flex-shrink: 0;
 }
 
 .select-all-text {
@@ -845,7 +942,8 @@ body {
 .log-select-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
+  flex-shrink: 0;
 }
 
 .btn-text-action {
@@ -856,8 +954,41 @@ body {
   cursor: pointer;
   padding: 2px 6px;
   font-family: var(--font-sans);
+  transition: color 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .btn-text-action:hover { color: var(--mono-white); }
+
+.btn-danger-text {
+  color: #f88 !important;
+}
+.btn-danger-text:hover {
+  color: #ffaaaa !important;
+  text-decoration: underline;
+}
+
+.btn-select-action {
+  background: var(--mono-surface);
+  border: 1px solid var(--mono-border);
+  color: var(--mono-text-primary);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 3px 8px;
+  font-family: var(--font-mono);
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.btn-select-action:hover {
+  background: var(--mono-surface-hover);
+  border-color: var(--mono-border-light);
+  color: var(--mono-white);
+}
+.btn-select-action:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
 
 .btn-clear-selected {
   background: rgba(232, 122, 122, 0.15);
@@ -865,9 +996,11 @@ body {
   color: #f88;
   font-size: 11px;
   cursor: pointer;
-  padding: 3px 10px;
+  padding: 3px 8px;
   font-family: var(--font-mono);
   transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .btn-clear-selected:hover {
   background: rgba(232, 122, 122, 0.3);
@@ -887,6 +1020,9 @@ body {
   cursor: pointer;
   padding: 3px 8px;
   font-family: var(--font-sans);
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .btn-cancel-select:hover {
   color: var(--mono-white);
@@ -931,9 +1067,14 @@ body {
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   color: var(--mono-text-muted);
   font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .btn-clear-text {
@@ -1026,11 +1167,15 @@ body {
 .transfer-log-scroll {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 1px;
   padding: 6px 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .transfer-log-scroll::-webkit-scrollbar {
@@ -1063,6 +1208,9 @@ body {
   transition: background 0.1s;
   cursor: pointer;
   user-select: none;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 .log-row:hover { background: var(--mono-surface); }
 .log-row.selected {

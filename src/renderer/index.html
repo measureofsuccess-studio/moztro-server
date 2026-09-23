@@ -17,6 +17,11 @@
         <img src="logo.png" alt="Moztro" class="app-logo" id="brandLogo">
       </div>
       <div class="top-bar-right">
+        <!-- Update Container: Progress text & Cyan Pill button -->
+        <div class="update-bar-container" id="updateBarContainer">
+          <span class="update-progress-text font-mono hidden" id="updateProgressText">Downloading update... 0%</span>
+          <button class="btn-update-pill hidden" id="btnInstallUpdate">Install Update</button>
+        </div>
         <div class="status-indicator" id="statusIndicator">
           <span class="status-text font-mono" id="serverInfoText">Connecting...</span>
         </div>
@@ -167,17 +172,22 @@
                   <!-- Normal Header (default) -->
                   <div class="transfer-log-header-normal" id="logHeaderNormal">
                     <span class="transfer-log-title">Transfer Log</span>
-                    <button class="btn-text-action" id="btnSelectModeToggle">Select</button>
+                    <div class="log-normal-actions">
+                      <button class="btn-text-action" id="btnSelectModeToggle">Select</button>
+                      <button class="btn-text-action btn-danger-text" id="btnDeleteAllData">Delete Data</button>
+                    </div>
                   </div>
                   <!-- Selection Header (active when items selected) -->
                   <div class="transfer-log-header-select hidden" id="logHeaderSelect">
                     <label class="select-all-label">
                       <input type="checkbox" id="cbSelectAll" class="custom-checkbox">
-                      <span class="select-all-text font-mono">Select All</span>
+                      <span class="select-all-text font-mono" id="selectAllText">All</span>
                     </label>
                     <div class="log-select-actions">
-                      <button class="btn-clear-selected" id="btnClearSelected">Clear</button>
-                      <button class="btn-cancel-select" id="btnCancelSelect">Cancel</button>
+                      <button class="btn-select-action" id="btnOpenSelected" title="Open selected files">Open</button>
+                      <button class="btn-select-action" id="btnCopySelected" title="Copy selected">Copy</button>
+                      <button class="btn-clear-selected" id="btnDeleteSelected" title="Delete selected">Delete</button>
+                      <button class="btn-cancel-select" id="btnCancelSelect" title="Cancel selection">Cancel</button>
                     </div>
                   </div>
                 </div>
@@ -262,7 +272,7 @@
               <div class="about-hero-card">
                 <div class="about-hero-brand">
                   <h1 class="about-app-name">MOZTRO</h1>
-                  <span class="about-badge font-mono">v1.0.0</span>
+                  <span class="about-badge font-mono">v1.0.2</span>
                 </div>
                 <p class="about-app-tagline font-mono">Universal PC-Android Seamless Bridge</p>
               </div>
@@ -395,6 +405,21 @@
 
         <div class="modal-actions modal-actions-right">
           <button class="btn btn-secondary" id="btnCloseDeviceSelect">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirm Delete All Data Modal Dialog -->
+    <div class="modal-overlay hidden" id="modalConfirmDeleteAll">
+      <div class="modal-card">
+        <div class="modal-tag" style="color: #f88; border-color: rgba(232, 122, 122, 0.4);">Delete All Data</div>
+        <h3 class="modal-title">Clear History & Delete Files?</h3>
+        <p class="modal-desc">
+          Semua riwayat transfer log akan dikosongkan dan seluruh file yang telah diunduh/diterima akan <strong>dihapus secara permanen</strong> dari penyimpanan PC Anda. Tindakan ini tidak dapat dibatalkan.
+        </p>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" id="btnCancelDeleteAll">Cancel</button>
+          <button class="btn btn-primary" id="btnConfirmDeleteAll" style="background:#d93025; border-color:#d93025; color:#fff;">Delete All</button>
         </div>
       </div>
     </div>

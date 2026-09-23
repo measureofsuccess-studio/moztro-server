@@ -8,11 +8,37 @@ const EventEmitter = require('events');
 const KeyboardSimulator = require('./keyboard');
 
 class MoztroServer extends EventEmitter {
+  static getDefaultStoragePath() {
+    try {
+      const electron = require('electron');
+      const app = electron.app || (electron.remote && electron.remote.app);
+      if (app && typeof app.getPath === 'function') {
+        const userDir = app.getPath('userData');
+        if (!fs.existsSync(userDir)) {
+          fs.mkdirSync(userDir, { recursive: true });
+        }
+        return path.join(userDir, 'paired-devices.json');
+      }
+    } catch (_) {}
+
+    try {
+      if (process.env.APPDATA) {
+        const userDir = path.join(process.env.APPDATA, 'Moztro');
+        if (!fs.existsSync(userDir)) {
+          fs.mkdirSync(userDir, { recursive: true });
+        }
+        return path.join(userDir, 'paired-devices.json');
+      }
+    } catch (_) {}
+
+    return path.join(__dirname, '../../paired-devices.json');
+  }
+
   constructor(options = {}) {
     super();
     this.wsPort = options.wsPort || 8765;
     this.udpPort = options.udpPort || 8766;
-    this.storagePath = options.storagePath || path.join(__dirname, '../../paired-devices.json');
+    this.storagePath = options.storagePath || MoztroServer.getDefaultStoragePath();
     this.fileSaveDirectory = options.fileSaveDirectory || path.join(os.homedir(), 'Documents');
     this.clipboard = options.clipboard || null;
     this.captureHandler = options.captureHandler || null;
@@ -108,8 +134,24 @@ class MoztroServer extends EventEmitter {
 
   loadPairedDevices() {
     try {
-      if (fs.existsSync(this.storagePath)) {
-        const raw = fs.readFileSync(this.storagePath, 'utf8');
+      let targetPath = this.storagePath;
+      if (!fs.existsSync(targetPath)) {
+        const fallbackCandidates = [
+          path.join(__dirname, '../../paired-devices.json'),
+          path.join(process.cwd(), 'paired-devices.json'),
+          process.env.APPDATA ? path.join(process.env.APPDATA, 'Moztro', 'paired-devices.json') : null
+        ].filter(Boolean);
+
+        for (const candidate of fallbackCandidates) {
+          if (fs.existsSync(candidate) && candidate !== targetPath) {
+            targetPath = candidate;
+            break;
+          }
+        }
+      }
+
+      if (fs.existsSync(targetPath)) {
+        const raw = fs.readFileSync(targetPath, 'utf8');
         const list = JSON.parse(raw);
         if (Array.isArray(list)) {
           list.forEach(dev => {
@@ -117,8 +159,13 @@ class MoztroServer extends EventEmitter {
               this.pairedDevices.set(dev.deviceId, dev);
             }
           });
-          console.log(`[MoztroServer] Loaded ${this.pairedDevices.size} paired devices from disk.`);
+          console.log(`[MoztroServer] Loaded ${this.pairedDevices.size} paired devices from ${targetPath}.`);
+          if (targetPath !== this.storagePath && this.pairedDevices.size > 0) {
+            this.savePairedDevices();
+          }
         }
+      } else {
+        console.log(`[MoztroServer] No paired devices found at ${this.storagePath}`);
       }
     } catch (e) {
       console.warn(`[MoztroServer] Could not load paired devices: ${e.message}`);
@@ -127,10 +174,15 @@ class MoztroServer extends EventEmitter {
 
   savePairedDevices() {
     try {
+      const dir = path.dirname(this.storagePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
       const list = Array.from(this.pairedDevices.values());
       fs.writeFileSync(this.storagePath, JSON.stringify(list, null, 2), 'utf8');
+      console.log(`[MoztroServer] Saved ${list.length} paired devices to ${this.storagePath}`);
     } catch (e) {
-      console.warn(`[MoztroServer] Could not save paired devices: ${e.message}`);
+      console.warn(`[MoztroServer] Could not save paired devices to ${this.storagePath}: ${e.message}`);
     }
   }
 
@@ -355,7 +407,7 @@ class MoztroServer extends EventEmitter {
               mac: primaryMac,
               wsPort: this.wsPort,
               platform: process.platform,
-              version: '1.0.0'
+              version: '1.0.1'
             });
 
             this.udpSocket.send(responseData, rinfo.port, rinfo.address, (err) => {
@@ -394,6 +446,13 @@ class MoztroServer extends EventEmitter {
 
         // Check if already paired
         if (this.pairedDevices.has(deviceId)) {
+          const paired = this.pairedDevices.get(deviceId);
+          paired.ip = clientIp;
+          if (displayName) paired.deviceName = displayName;
+          paired.lastConnected = new Date().toISOString();
+          this.pairedDevices.set(deviceId, paired);
+          this.savePairedDevices();
+
           this.activeSockets.set(deviceId, ws);
           ws.deviceId = deviceId;
           ws.send(JSON.stringify({
@@ -605,24 +664,41 @@ class MoztroServer extends EventEmitter {
           quality: msg.quality || 'BALANCED',
           audioEnabled: msg.audioEnabled !== false
         });
-        // Send initial cursor position immediately
-        try {
-          const electron = require('electron');
-          const cursorPos = electron.screen.getCursorScreenPoint();
-          const primaryDisplay = electron.screen.getPrimaryDisplay();
-          const { width: sw, height: sh } = primaryDisplay.bounds;
-          this.sendJsonToDevice(msg.deviceId, {
-            type: 'CURSOR_POS',
-            x: cursorPos.x,
-            y: cursorPos.y,
-            screenW: sw,
-            screenH: sh
-          });
-        } catch (_) {}
+
+        // Start periodic cursor sync (every 50ms / 20fps) to ensure smooth cursor tracking
+        if (!this.overdriveCursorTimers) this.overdriveCursorTimers = new Map();
+        if (this.overdriveCursorTimers.has(msg.deviceId)) {
+          clearInterval(this.overdriveCursorTimers.get(msg.deviceId));
+        }
+
+        const sendCursor = () => {
+          try {
+            const electron = require('electron');
+            if (!electron || !electron.screen) return;
+            const cursorPos = electron.screen.getCursorScreenPoint();
+            const primaryDisplay = electron.screen.getPrimaryDisplay();
+            const { width: sw, height: sh } = primaryDisplay.bounds;
+            this.sendJsonToDevice(msg.deviceId, {
+              type: 'CURSOR_POS',
+              x: cursorPos.x,
+              y: cursorPos.y,
+              screenW: sw,
+              screenH: sh
+            });
+          } catch (_) {}
+        };
+
+        sendCursor();
+        const cursorInterval = setInterval(sendCursor, 50);
+        this.overdriveCursorTimers.set(msg.deviceId, cursorInterval);
         break;
       }
 
       case 'STOP_OVERDRIVE_STREAM': {
+        if (this.overdriveCursorTimers && this.overdriveCursorTimers.has(msg.deviceId)) {
+          clearInterval(this.overdriveCursorTimers.get(msg.deviceId));
+          this.overdriveCursorTimers.delete(msg.deviceId);
+        }
         this.emit('stopOverdriveStream', { deviceId: msg.deviceId });
         break;
       }
@@ -680,6 +756,10 @@ class MoztroServer extends EventEmitter {
       case 'DISCONNECT': {
         if (this.keyboard) this.keyboard.releaseAll();
         if (msg.deviceId) {
+          if (this.overdriveCursorTimers && this.overdriveCursorTimers.has(msg.deviceId)) {
+            clearInterval(this.overdriveCursorTimers.get(msg.deviceId));
+            this.overdriveCursorTimers.delete(msg.deviceId);
+          }
           this.emit('stopOverdriveStream', { deviceId: msg.deviceId });
           this.activeSockets.delete(msg.deviceId);
           this.emit('deviceDisconnected', { deviceId: msg.deviceId });

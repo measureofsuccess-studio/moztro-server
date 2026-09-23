@@ -51,5 +51,9 @@ contextBridge.exposeInMainWorld('moztroAPI', {
   onStopOverdriveStream: (callback) => ipcRenderer.on('stop-overdrive-stream', (_event, value) => callback(value)),
   onChangeOverdriveMonitor: (callback) => ipcRenderer.on('change-overdrive-monitor', (_event, value) => callback(value)),
   onOverdriveEngineStatus: (callback) => ipcRenderer.on('overdrive-engine-status', (_event, value) => callback(value)),
-  openExternalUrl: (url) => ipcRenderer.invoke('open-external-url', url)
+  openExternalUrl: (url) => ipcRenderer.invoke('open-external-url', url),
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
+  onUpdateDownloadProgress: (callback) => ipcRenderer.on('update-download-progress', (_event, value) => callback(value)),
+  onUpdateDownloadComplete: (callback) => ipcRenderer.on('update-download-complete', (_event, value) => callback(value))
 });

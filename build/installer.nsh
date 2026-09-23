@@ -17,7 +17,7 @@
 
   ; Register Windows Startup Auto-run (enabled by default)
   DetailPrint "Configuring Windows Startup Run key..."
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Moztro" '"$INSTDIR\Moztro.exe"'
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Moztro" '"$INSTDIR\Moztro.exe" --autostart'
 !macroend
 
 !macro customUnInstall
