@@ -223,6 +223,21 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
 
+  mainWindow.webContents.once('did-finish-load', () => {
+    setTimeout(() => {
+      checkForGithubUpdates().catch(err => {
+        console.warn('[AutoUpdate] Initial update check failed:', err.message);
+      });
+    }, 2000);
+  });
+
+  // Periodic background check every 30 minutes
+  setInterval(() => {
+    checkForGithubUpdates().catch(err => {
+      console.warn('[AutoUpdate] Periodic check failed:', err.message);
+    });
+  }, 30 * 60 * 1000);
+
   mainWindow.on('close', (event) => {
     if (minimizeToTray && !isQuitting) {
       event.preventDefault();

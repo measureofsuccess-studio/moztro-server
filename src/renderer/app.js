@@ -947,6 +947,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // Trigger Silent Auto-Update Check on startup
+  if (window.moztroAPI?.checkForUpdates) {
+    setTimeout(() => {
+      window.moztroAPI.checkForUpdates().catch(e => {
+        console.warn('Initial update check error:', e);
+      });
+    }, 2500);
+  }
+
 
   // Send File button (in left column)
   if (btnSendFilePcMain) {
